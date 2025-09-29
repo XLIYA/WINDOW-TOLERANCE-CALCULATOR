@@ -22,7 +22,7 @@ export default function Home() {
     removeWindow,
     clearAllData,
   } = useWindowData();
-  
+
   const { exportToExcel } = useExcelExport();
 
   const handleReset = () => {
@@ -38,21 +38,21 @@ export default function Home() {
   };
 
   const steps = [
-    { 
-      id: 0, 
-      title: 'اطلاعات پروژه', 
+    {
+      id: 0,
+      title: 'اطلاعات پروژه',
       icon: Info,
       description: 'ثبت اطلاعات اولیه پروژه'
     },
-    { 
-      id: 1, 
-      title: 'ورود داده‌های پنجره', 
+    {
+      id: 1,
+      title: 'ورود داده‌های پنجره',
       icon: Clock,
       description: 'وارد کردن ابعاد پنجره‌ها'
     },
-    { 
-      id: 2, 
-      title: 'نمایش گزارش', 
+    {
+      id: 2,
+      title: 'نمایش گزارش',
       icon: BarChart3,
       description: 'مشاهده نتایج و تحلیل‌ها'
     }
@@ -73,7 +73,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Header onExport={handleExport} onReset={handleReset} />
-      
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Progress Steps */}
         <div className="mb-10">
@@ -81,10 +81,10 @@ export default function Home() {
             {steps.map((step, index) => {
               const status = getStepStatus(step.id);
               const Icon = step.icon;
-              
+
               return (
                 <React.Fragment key={step.id}>
-                  <div 
+                  <div
                     className={`
                       group flex flex-col items-center cursor-pointer transition-all duration-300
                       ${status !== 'pending' ? 'opacity-100' : 'opacity-60'}
@@ -97,11 +97,11 @@ export default function Home() {
                   >
                     <div className={`
                       relative w-14 h-14 rounded-2xl flex items-center justify-center text-sm font-bold transition-all duration-300
-                      ${status === 'completed' 
-                        ? 'bg-success text-success-foreground shadow-lg animate-scale-in' 
+                      ${status === 'completed'
+                        ? 'bg-success text-success-foreground shadow-lg animate-scale-in'
                         : status === 'active'
-                        ? 'bg-gradient-secondary text-secondary-foreground shadow-glow animate-glow'
-                        : 'bg-muted text-muted-foreground'
+                          ? 'bg-gradient-secondary text-secondary-foreground shadow-glow animate-glow'
+                          : 'bg-muted text-muted-foreground'
                       }
                     `}>
                       {status === 'completed' ? (
@@ -109,12 +109,12 @@ export default function Home() {
                       ) : (
                         <Icon className="w-6 h-6" />
                       )}
-                      
+
                       {status === 'active' && (
                         <div className="absolute inset-0 rounded-2xl bg-gradient-secondary opacity-20 animate-pulse" />
                       )}
                     </div>
-                    
+
                     <div className="mt-3 text-center">
                       <span className={`
                         block text-sm font-semibold transition-all duration-300
@@ -127,7 +127,7 @@ export default function Home() {
                       </span>
                     </div>
                   </div>
-                  
+
                   {index < steps.length - 1 && (
                     <div className="flex items-center mx-8">
                       <div className={`
@@ -163,14 +163,14 @@ export default function Home() {
                   <h2 className="text-3xl font-bold text-foreground mb-3">اطلاعات پروژه</h2>
                   <p className="text-muted-foreground text-lg">لطفا اطلاعات اولیه پروژه را با دقت وارد کنید</p>
                 </div>
-                
+
                 <div className="bg-gradient-subtle rounded-2xl p-8 border border-border">
-                  <ProjectInfoForm 
-                    projectInfo={projectInfo} 
-                    onUpdate={updateProjectInfo} 
+                  <ProjectInfoForm
+                    projectInfo={projectInfo}
+                    onUpdate={updateProjectInfo}
                   />
                 </div>
-                
+
                 <div className="mt-8 flex justify-end">
                   <button
                     onClick={() => setActiveStep(1)}
@@ -201,7 +201,7 @@ export default function Home() {
                 <h2 className="text-3xl font-bold text-foreground mb-3">ورود داده‌های پنجره</h2>
                 <p className="text-muted-foreground text-lg">اطلاعات پنجره‌های هر طبقه را با دقت وارد کنید</p>
               </div>
-              
+
               <FloorManager
                 floors={floors}
                 currentFloorIndex={currentFloorIndex}
@@ -212,7 +212,7 @@ export default function Home() {
                 onAddWindow={addWindow}
                 onRemoveWindow={removeWindow}
               />
-              
+
               <div className="mt-10 flex justify-between">
                 <button
                   onClick={() => setActiveStep(0)}
@@ -249,9 +249,9 @@ export default function Home() {
                 <h2 className="text-3xl font-bold text-foreground mb-3">گزارش و نمودارها</h2>
                 <p className="text-muted-foreground text-lg">نتایج تحلیل تلورانس پنجره‌های پروژه</p>
               </div>
-              
+
               <ChartContainer floors={floors} />
-              
+
               <div className="mt-10 flex justify-between">
                 <button
                   onClick={() => setActiveStep(1)}
@@ -281,9 +281,9 @@ export default function Home() {
             <div>
               <h3 className="font-bold text-secondary text-lg mb-2">راهنمای استفاده</h3>
               <p className="text-secondary/80 leading-relaxed">
-                {activeStep === 0 && 'فیلدهای ستاره‌دار اجباری هستند. پس از تکمیل اطلاعات، دکمه "مرحله بعد" فعال خواهد شد.'}
-                {activeStep === 1 && 'برای هر طبقه می‌توانید چندین پنجره اضافه کنید. قطرهای وارد شده باید نزدیک به قطر نظری محاسبه شده باشند.'}
-                {activeStep === 2 && 'در این بخش می‌توانید آمار و نمودارهای مختلف را مشاهده کنید و گزارش نهایی را در قالب Excel دانلود نمایید.'}
+                {activeStep === 0 && 'فیلدهای ستاره‌دار اجباری هستند. پس از تکمیل اطلاعات، "مرحله بعد" را بزنید.'}
+                {activeStep === 1 && 'برای هر طبقه می‌توانید چند پنجره اضافه کنید. قطرهای واقعی را نزدیک به قطر نظری وارد نمایید.'}
+                {activeStep === 2 && 'در این بخش آمار کلی پروژه را می‌بینید و می‌توانید خروجی Excel بگیرید.'}
               </p>
             </div>
           </div>
