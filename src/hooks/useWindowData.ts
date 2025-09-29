@@ -1,77 +1,47 @@
-import { useState } from 'react';
-import { FloorData, WindowData } from '../types';
+import { useMemo, useState } from "react";
 
-export const useWindowData = () => {
-  const [floors, setFloors] = useState<FloorData[]>([
-    { id: '1', floorNumber: 1, windows: [] }
-  ]);
-  const [currentFloorIndex, setCurrentFloorIndex] = useState(0);
+export interface WindowInput {
+  code: string;
+  theoreticalDiameter: number;
+  actualDiameter: number;
+}
 
-  const addFloor = () => {
-    const newFloorNumber = Math.max(...floors.map(f => f.floorNumber)) + 1;
-    const newFloor: FloorData = {
-      id: Date.now().toString(),
-      floorNumber: newFloorNumber,
-      windows: []
-    };
-    setFloors(prev => [...prev, newFloor]);
+export interface WindowItem extends WindowInput {
+  id: string;
+  floorId: string;
+}
+
+export function useWindowData(initial: WindowItem[] = []) {
+  const [windows, setWindows] = useState<WindowItem[]>(initial);
+
+  const addWindow = (w: Omit<WindowItem, "id"> & { id?: string }) => {
+    const id = w.id ?? crypto.randomUUID();
+    setWindows((prev) => [...prev, { ...w, id }]);
   };
 
-  const removeFloor = (floorId: string) => {
-    if (floors.length > 1) {
-      setFloors(prev => prev.filter(f => f.id !== floorId));
-      if (currentFloorIndex >= floors.length - 1) {
-        setCurrentFloorIndex(0);
-      }
-    }
+  const updateWindow = (id: string, patch: Partial<WindowInput>) => {
+    setWindows((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   };
 
-  const addWindow = (floorId: string, windowData: any) => {
-    const theoreticalDiagonal = Math.sqrt(Math.pow(windowData.width, 2) + Math.pow(windowData.height, 2));
-    const avgDiagonal = (windowData.diagonal1 + windowData.diagonal2) / 2;
-    const diagonalDiff = Math.abs(theoreticalDiagonal - avgDiagonal);
-    
-    let status: 'pass' | 'warning' | 'fail';
-    if (diagonalDiff <= 2) status = 'pass';
-    else if (diagonalDiff <= 5) status = 'warning';
-    else status = 'fail';
-
-    const newWindow: WindowData = {
-      id: Date.now().toString(),
-      ...windowData,
-      theoreticalDiagonal,
-      diagonalDiff,
-      status
-    };
-
-    setFloors(prev => prev.map(floor => 
-      floor.id === floorId 
-        ? { ...floor, windows: [...floor.windows, newWindow] }
-        : floor
-    ));
+  const removeWindow = (id: string) => {
+    setWindows((prev) => prev.filter((x) => x.id !== id));
   };
 
-  const removeWindow = (floorId: string, windowId: string) => {
-    setFloors(prev => prev.map(floor => 
-      floor.id === floorId 
-        ? { ...floor, windows: floor.windows.filter(w => w.id !== windowId) }
-        : floor
-    ));
-  };
+  const stats = useMemo(() => {
+    const count = windows.length;
+    const avgDelta =
+      count === 0
+        ? 0
+        : windows.reduce((s, w) => s + (w.actualDiameter - w.theoreticalDiameter), 0) / count;
+    const maxDelta =
+      count === 0
+        ? 0
+        : Math.max(
+            ...windows.map((w) => Math.abs(w.actualDiameter - w.theoreticalDiameter))
+          );
 
-  const clearAllData = () => {
-    setFloors([{ id: '1', floorNumber: 1, windows: [] }]);
-    setCurrentFloorIndex(0);
-  };
+    return { count, avgDelta, maxDelta };
+  }, [windows]);
 
-  return {
-    floors,
-    currentFloorIndex,
-    setCurrentFloorIndex,
-    addFloor,
-    removeFloor,
-    addWindow,
-    removeWindow,
-    clearAllData
-  };
-};
+  return { windows, addWindow, updateWindow, removeWindow, stats };
+}
