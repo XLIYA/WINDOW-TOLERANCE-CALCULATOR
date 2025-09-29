@@ -23,7 +23,7 @@ export const Header: React.FC<HeaderProps> = ({ onExport, onReset }) => {
               <p className="text-sm text-muted-foreground">محاسبه دقیق ابعاد پنجره‌های ساختمانی</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <button
               onClick={onExport}
@@ -32,10 +32,10 @@ export const Header: React.FC<HeaderProps> = ({ onExport, onReset }) => {
             >
               <Download className="w-5 h-5 group-hover:scale-110 transition-transform duration-300" />
             </button>
-            
+
             <button
               onClick={onReset}
-              className="group p-3 text-muted-foreground hover:text-destructive hover:bg-destructive-light rounded-xl transition-all duration-300 hover:shadow-lg"
+              className="group p-3 text-muted-foreground hover:text-foreground bg-card hover:bg-accent/40 active:scale-95 rounded-xl transition-all duration-300 hover:shadow-lg"
               title="شروع مجدد"
             >
               <RefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
