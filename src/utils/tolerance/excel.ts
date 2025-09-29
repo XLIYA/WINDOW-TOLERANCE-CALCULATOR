@@ -4,14 +4,6 @@ import { ProjectInfo, FloorData } from './types';
 import { TOLERANCE_LIMITS, STATUS_LABELS } from './constants';
 import { calculateStatistics } from './calculations';
 
-/**
- * Export project and window data to an Excel workbook. Generates separate
- * sheets for project info, each floor, and a summary statistics sheet.
- * Persians labels are used to align with the app's localisation.
- *
- * @param projectInfo Metadata about the current project
- * @param floors Array of floors containing windows and measurement data
- */
 export const exportToExcel = (projectInfo: ProjectInfo, floors: FloorData[]): void => {
   const wb = XLSX.utils.book_new();
 
@@ -26,10 +18,11 @@ export const exportToExcel = (projectInfo: ProjectInfo, floors: FloorData[]): vo
     ['تاریخ:', projectInfo.date],
     ['توضیحات:', projectInfo.description || '-'],
     [''],
-    ['تلورانس‌های مجاز:'],
+    ['تلورانس‌های پیش‌فرض (جهت اطلاع):'],
     ['عرض:', `${TOLERANCE_LIMITS.width} mm`],
     ['ارتفاع:', `${TOLERANCE_LIMITS.height} mm`],
-    ['قطر:', `${TOLERANCE_LIMITS.diagonal} mm`]
+    ['قطر:', `${TOLERANCE_LIMITS.diagonal} mm`],
+    ['* توجه: در این پروژه برای هر پنجره LIMIT اختصاصی ثبت می‌شود.'],
   ];
 
   const projectWs = XLSX.utils.aoa_to_sheet(projectData);
@@ -40,16 +33,28 @@ export const exportToExcel = (projectInfo: ProjectInfo, floors: FloorData[]): vo
     const floorData = [
       [`طبقه ${floor.floorNumber}`],
       [''],
-      ['کد پنجره', 'عرض (mm)', 'ارتفاع (mm)', 'قطر نظری', 'قطر 1', 'قطر 2', 'اختلاف قطر', 'وضعیت'],
-      ...floor.windows.map(window => [
-        window.code,
-        window.width,
-        window.height,
-        window.theoreticalDiagonal.toFixed(1),
-        window.diagonal1,
-        window.diagonal2,
-        window.diagonalDiff.toFixed(2),
-        STATUS_LABELS[window.status]
+      [
+        'کد',
+        'عرض اسمی', 'ارتفاع اسمی', 'LIMIT',
+        'عرض بالا', 'عرض وسط', 'عرض پایین',
+        'ارتفاع چپ', 'ارتفاع وسط', 'ارتفاع راست',
+        'میانگین عرض', 'میانگین ارتفاع',
+        'رنج عرض', 'رنج ارتفاع',
+        'قطر نظری', 'قطر واقعی', 'اختلاف قطر',
+        'تلورانس عرض', 'تلورانس ارتفاع',
+        'وضعیت'
+      ],
+      ...floor.windows.map(w => [
+        w.code,
+        w.nominalWidth, w.nominalHeight, w.limit,
+        w.widthTop, w.widthMiddle, w.widthBottom,
+        w.heightLeft, w.heightMiddle, w.heightRight,
+        Number(w.widthMean.toFixed(1)), Number(w.heightMean.toFixed(1)),
+        Number(w.widthRange.toFixed(1)), Number(w.heightRange.toFixed(1)),
+        Number(w.theoreticalDiagonal.toFixed(1)), Number(w.actualDiagonal.toFixed(1)),
+        Number(w.diagonalDiff.toFixed(1)),
+        Number(w.widthTolerance.toFixed(1)), Number(w.heightTolerance.toFixed(1)),
+        STATUS_LABELS[w.status]
       ])
     ];
 
@@ -58,15 +63,14 @@ export const exportToExcel = (projectInfo: ProjectInfo, floors: FloorData[]): vo
   });
 
   // Statistics Sheet
-  const stats = calculateStatistics(floors);
+  const stats = calculateStatistics(floors as any); // اگر تابع شما نیاز به سازگاری دارد
   const summaryData = [
     ['خلاصه آماری'],
     [''],
     ['تعداد کل پنجره‌ها:', stats.total],
-    ['پنجره‌های قبول شده:', stats.pass],
-    ['پنجره‌های با هشدار:', stats.warning],
-    ['پنجره‌های مردود:', stats.fail],
-    ['درصد قبولی:', `${stats.passRate.toFixed(2)}%`]
+    ['قبول:', stats.pass],
+    ['هشدار:', stats.warning],
+    ['مردود:', stats.fail],
   ];
 
   const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
@@ -77,9 +81,8 @@ export const exportToExcel = (projectInfo: ProjectInfo, floors: FloorData[]): vo
   const buf = new ArrayBuffer(wbout.length);
   const view = new Uint8Array(buf);
   for (let i = 0; i < wbout.length; i++) {
-    view[i] = wbout.charCodeAt(i) & 0xFF;
+    view[i] = wbout.charCodeAt(i) & 0xff;
   }
-
   const blob = new Blob([buf], { type: 'application/octet-stream' });
   const fileName = `گزارش_تلورانس_${projectInfo.buildingName}_${new Date().toLocaleDateString('fa-IR')}.xlsx`;
   saveAs(blob, fileName);

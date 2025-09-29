@@ -1,41 +1,111 @@
 import { useMemo, useState } from "react";
 
-/** انواع داده */
+/** ابزارهای کمکی محاسبات */
+const avg = (a: number[]) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
+const rng = (a: number[]) => (a.length ? Math.max(...a) - Math.min(...a) : 0);
+const diag = (w: number, h: number) => Math.sqrt(w * w + h * h);
+
+const determineStatusWithLimit = (
+  widthTol: number,
+  heightTol: number,
+  diagonalDiff: number,
+  limit: number,
+  warningMultiplier = 1.5
+): "pass" | "warning" | "fail" => {
+  if (widthTol <= limit && heightTol <= limit && diagonalDiff <= limit) return "pass";
+  if (
+    widthTol <= limit * warningMultiplier &&
+    heightTol <= limit * warningMultiplier &&
+    diagonalDiff <= limit * warningMultiplier
+  )
+    return "warning";
+  return "fail";
+};
+
+/** انواع داده (ورود/ذخیره پنجره) */
 export interface WindowInput {
   code: string;
-  theoreticalDiameter: number;
-  actualDiameter: number;
+
+  nominalWidth: number;  // عرض اسمی (mm)
+  nominalHeight: number; // ارتفاع اسمی (mm)
+  limit: number;         // حد مجاز تلورانس (mm)
+
+  // عرض در سه نقطه: بالا/وسط/پایین
+  widthTop: number;
+  widthMiddle: number;
+  widthBottom: number;
+
+  // ارتفاع در سه نقطه: چپ/وسط/راست
+  heightLeft: number;
+  heightMiddle: number;
+  heightRight: number;
 }
 
 export interface WindowItem extends WindowInput {
   id: string;
   floorId: string;
+
+  // مقادیر مشتق‌شده برای نمایش/اکسل/وضعیت
+  widthMean: number;
+  heightMean: number;
+  widthRange: number;   // max-min
+  heightRange: number;  // max-min
+
+  theoreticalDiagonal: number; // از nominal‌ها
+  actualDiagonal: number;      // از میانگین‌های واقعی
+
+  widthTolerance: number;   // |widthMean - nominalWidth|
+  heightTolerance: number;  // |heightMean - nominalHeight|
+  diagonalDiff: number;     // |actualDiagonal - theoreticalDiagonal|
+
+  status: "pass" | "warning" | "fail";
 }
 
 export interface FloorItem {
   id: string;
-  name: string;
-  floorNumber: number; // برای سازگاری با نمودار
+  name?: string;
+  floorNumber: number;
   windows: WindowItem[];
 }
 
-export interface FloorsStats {
-  totalFloors: number;
-  totalWindows: number;
-  avgDelta: number;
-  maxAbsDelta: number;
-  perFloor: Array<{
-    floorId: string;
-    floorName: string;
-    floorNumber: number;
-    count: number;
-    avgDelta: number;
-    maxAbsDelta: number;
-  }>;
+function buildWindowDerived(w: WindowInput) {
+  const widthMean = avg([w.widthTop, w.widthMiddle, w.widthBottom]);
+  const heightMean = avg([w.heightLeft, w.heightMiddle, w.heightRight]);
+
+  const widthRange = rng([w.widthTop, w.widthMiddle, w.widthBottom]);
+  const heightRange = rng([w.heightLeft, w.heightMiddle, w.heightRight]);
+
+  const theoreticalDiagonal = diag(w.nominalWidth, w.nominalHeight);
+  const actualDiagonal = diag(widthMean, heightMean);
+
+  const widthTolerance = Math.abs(widthMean - w.nominalWidth);
+  const heightTolerance = Math.abs(heightMean - w.nominalHeight);
+  const diagonalDiff = Math.abs(actualDiagonal - theoreticalDiagonal);
+
+  const status = determineStatusWithLimit(
+    widthTolerance,
+    heightTolerance,
+    diagonalDiff,
+    w.limit
+  );
+
+  return {
+    widthMean,
+    heightMean,
+    widthRange,
+    heightRange,
+    theoreticalDiagonal,
+    actualDiagonal,
+    widthTolerance,
+    heightTolerance,
+    diagonalDiff,
+    status,
+  };
 }
 
-function renumberFloors(list: FloorItem[]): FloorItem[] {
-  return list.map((f, i) => ({
+/** ابزار شماره‌گذاری طبقات */
+function renumberFloors(floors: FloorItem[]): FloorItem[] {
+  return floors.map((f, i) => ({
     ...f,
     floorNumber: i + 1,
     name: f.name || `طبقه ${i + 1}`,
@@ -55,26 +125,14 @@ export function useFloorsData(initial?: FloorItem[]) {
 
   /** افزودن/حذف طبقه */
   const addFloor = (name?: string) => {
-    setFloors((prev) =>
-      renumberFloors([
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          name: (name?.trim() || `طبقه ${prev.length + 1}`),
-          floorNumber: prev.length + 1,
-          windows: [],
-        },
-      ])
-    );
-    setCurrentFloorIndex((i) => i + 1);
+    setFloors((prev) => renumberFloors([...prev, { id: crypto.randomUUID(), name, floorNumber: 0, windows: [] }]));
+    setCurrentFloorIndex((idx) => floors.length); // انتخاب طبقه آخر
   };
 
   const removeFloor = (floorId: string) => {
     setFloors((prev) => {
       const next = renumberFloors(prev.filter((f) => f.id !== floorId));
-      setCurrentFloorIndex((idx) =>
-        idx >= next.length ? Math.max(0, next.length - 1) : idx
-      );
+      setCurrentFloorIndex((idx) => (idx >= next.length ? Math.max(0, next.length - 1) : idx));
       return next.length
         ? next
         : [{ id: crypto.randomUUID(), name: "طبقه 1", floorNumber: 1, windows: [] }];
@@ -90,17 +148,15 @@ export function useFloorsData(initial?: FloorItem[]) {
               ...f,
               windows: [
                 ...f.windows,
-                {
-                  id: data.id ?? crypto.randomUUID(),
-                  floorId,
-                  code: data.code.trim(),
-                  theoreticalDiameter: Number.isFinite(data.theoreticalDiameter)
-                    ? data.theoreticalDiameter
-                    : 0,
-                  actualDiameter: Number.isFinite(data.actualDiameter)
-                    ? data.actualDiameter
-                    : 0,
-                },
+                (() => {
+                  const d = buildWindowDerived(data);
+                  return {
+                    id: data.id ?? crypto.randomUUID(),
+                    floorId,
+                    ...data,
+                    ...d,
+                  } as WindowItem;
+                })(),
               ],
             }
           : f
@@ -108,40 +164,30 @@ export function useFloorsData(initial?: FloorItem[]) {
     );
   };
 
-  const updateWindow = (
-    floorId: string,
-    windowId: string,
-    patch: Partial<WindowInput>
-  ) => {
+  const updateWindow = (floorId: string, windowId: string, patch: Partial<WindowInput>) => {
     setFloors((prev) =>
       prev.map((f) =>
         f.id === floorId
           ? {
               ...f,
-              windows: f.windows.map((w) =>
-                w.id === windowId
-                  ? {
-                      ...w,
-                      ...(patch.code !== undefined ? { code: patch.code } : {}),
-                      ...(patch.theoreticalDiameter !== undefined
-                        ? {
-                            theoreticalDiameter: Number.isFinite(
-                              patch.theoreticalDiameter
-                            )
-                              ? patch.theoreticalDiameter!
-                              : 0,
-                          }
-                        : {}),
-                      ...(patch.actualDiameter !== undefined
-                        ? {
-                            actualDiameter: Number.isFinite(patch.actualDiameter)
-                              ? patch.actualDiameter!
-                              : 0,
-                          }
-                        : {}),
-                    }
-                  : w
-              ),
+              windows: f.windows.map((w) => {
+                if (w.id !== windowId) return w;
+                const next: WindowInput = {
+                  code: w.code,
+                  nominalWidth: w.nominalWidth,
+                  nominalHeight: w.nominalHeight,
+                  limit: w.limit,
+                  widthTop: w.widthTop,
+                  widthMiddle: w.widthMiddle,
+                  widthBottom: w.widthBottom,
+                  heightLeft: w.heightLeft,
+                  heightMiddle: w.heightMiddle,
+                  heightRight: w.heightRight,
+                  ...patch,
+                };
+                const d = buildWindowDerived(next);
+                return { ...w, ...patch, ...d } as WindowItem;
+              }),
             }
           : f
       )
@@ -151,56 +197,32 @@ export function useFloorsData(initial?: FloorItem[]) {
   const removeWindow = (floorId: string, windowId: string) => {
     setFloors((prev) =>
       prev.map((f) =>
-        f.id === floorId
-          ? { ...f, windows: f.windows.filter((w) => w.id !== windowId) }
-          : f
+        f.id === floorId ? { ...f, windows: f.windows.filter((w) => w.id !== windowId) } : f
       )
     );
   };
 
-  /** پاک‌سازی کامل */
   const clearAllData = () => {
-    const base = [
-      { id: crypto.randomUUID(), name: "طبقه 1", floorNumber: 1, windows: [] },
-    ];
-    setFloors(base);
+    setFloors([{ id: crypto.randomUUID(), name: "طبقه 1", floorNumber: 1, windows: [] }]);
     setCurrentFloorIndex(0);
   };
 
-  /** آمار */
-  const stats: FloorsStats = useMemo(() => {
-    const perFloor = floors.map((f) => {
-      const count = f.windows.length;
-      const deltas = f.windows.map(
-        (w) => w.actualDiameter - w.theoreticalDiameter
-      );
-      const avgDelta = count ? deltas.reduce((s, d) => s + d, 0) / count : 0;
-      const maxAbsDelta = count
-        ? Math.max(...deltas.map((d) => Math.abs(d)))
-        : 0;
-      return {
-        floorId: f.id,
-        floorName: f.name,
-        floorNumber: f.floorNumber,
-        count,
-        avgDelta,
-        maxAbsDelta,
-      };
-    });
-
+  /** آمار ساده */
+  const stats = useMemo(() => {
     const totalFloors = floors.length;
     const totalWindows = floors.reduce((s, f) => s + f.windows.length, 0);
-    const allDeltas = floors.flatMap((f) =>
-      f.windows.map((w) => w.actualDiameter - w.theoreticalDiameter)
-    );
-    const avgDelta = totalWindows
-      ? allDeltas.reduce((s, d) => s + d, 0) / totalWindows
-      : 0;
-    const maxAbsDelta = totalWindows
-      ? Math.max(...allDeltas.map((d) => Math.abs(d)))
-      : 0;
 
-    return { totalFloors, totalWindows, avgDelta, maxAbsDelta, perFloor };
+    const pass = floors.flatMap((f) => f.windows).filter((w) => w.status === "pass").length;
+    const warning = floors.flatMap((f) => f.windows).filter((w) => w.status === "warning").length;
+    const fail = floors.flatMap((f) => f.windows).filter((w) => w.status === "fail").length;
+
+    // میانگین تلورانس (میانگینِ میانگین عرض/ارتفاع)
+    const allTol = floors.flatMap((f) =>
+      f.windows.map((w) => (w.widthTolerance + w.heightTolerance) / 2)
+    );
+    const avgTol = totalWindows ? allTol.reduce((s, x) => s + x, 0) / totalWindows : 0;
+
+    return { totalFloors, totalWindows, pass, warning, fail, avgTol };
   }, [floors]);
 
   return {

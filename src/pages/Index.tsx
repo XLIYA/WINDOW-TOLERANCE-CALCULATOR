@@ -9,7 +9,7 @@ import { useExcelExport } from "@/hooks/useExcelExport";
 import { useFloorsData } from "@/hooks/useFloorsData";
 import { Info, ChevronRight, CheckCircle, Clock, BarChart3 } from "lucide-react";
 
-// 👇 این تایپ‌ها از types پروژه شماست
+// 👇 تایپ‌های نمودار/گزارش (قدیمی) — صرفاً برای ChartContainer
 import type { FloorData, WindowData } from "@/types";
 
 export default function Home() {
@@ -37,64 +37,55 @@ export default function Home() {
   const { exportToExcel } = useExcelExport();
 
   const handleReset = () => {
-    if (
-      window.confirm("آیا از شروع مجدد اطمینان دارید؟ تمام داده‌ها حذف خواهند شد.")
-    ) {
+    if (window.confirm("آیا از شروع مجدد اطمینان دارید؟ تمام داده‌ها حذف خواهند شد.")) {
       resetProjectInfo();
       clearAllData();
       setActiveStep(0);
     }
   };
 
-const handleExport = () => {
-  exportToExcel(projectInfo, floorsForCharts); // ✅ این‌جا هم باید FloorData[] باشد
-};
+  // ⛳️ دانلود اکسل: حتماً floors اصلی (از هوک) پاس داده شود تا همه فیلدهای جدید در خروجی بیاید
+  const handleExport = () => {
+    exportToExcel(projectInfo as any, floors as any);
+  };
 
   /**
-   * آداپتور: FloorItem[] -> FloorData[]
-   * نکته‌ها:
-   *  - FloorData طبق types شما باید `id` داشته باشد ⇒ اضافه شد.
-   *  - WindowData باید `id`, `code`, `width`, `height`, `diagonal1`, `diagonal2`,
-   *    `diagonalDiff`, `status` و (طبق ارور شما) `theoreticalDiagonal` داشته باشد.
-   *  - هیچ فیلد ناشناخته‌ای به WindowData اضافه نکن (مثل theoreticalDiameter/actualDiameter) تا TS خطا ندهد.
-   *  - اگر در پروژه‌تان نام فیلدها فرق دارد، همین جا جایگزین کنید.
+   * آداپتور برای ChartContainer: FloorItem[] -> FloorData[]
+   * چون کامپوننت نمودار از تایپ‌های قدیمی استفاده می‌کند (width/height/diagonal1/2 و ...)،
+   * اینجا از مقادیر مشتق‌شده‌ی جدیدمان (میانگین‌ها و قطرها) برای پر کردن آن تایپ استفاده می‌کنیم.
    */
   const floorsForCharts: FloorData[] = useMemo(() => {
-    const toWindowData = (
-      w: (typeof floors)[number]["windows"][number]
-    ): WindowData => {
-      // اگر اندازه‌ها دارید از همون‌ها استفاده کنید؛ فعلاً پیش‌فرض صفر می‌گذاریم
-      const width = 0;
-      const height = 0;
-      const diagonal1 = 0;
-      const diagonal2 = 0;
+    const toWindowData = (w: (typeof floors)[number]["windows"][number]): WindowData => {
+      const width = Number(w.widthMean ?? 0);
+      const height = Number(w.heightMean ?? 0);
+
+      // برای سازگاری با تایپ قدیمی:
+      const theoreticalDiagonal = Number(w.theoreticalDiagonal ?? 0);
+      const actualDiagonal = Number(w.actualDiagonal ?? 0);
+      const diagonal1 = actualDiagonal;          // قطر اندازه‌گیری‌شده (از میانگین‌ها)
+      const diagonal2 = theoreticalDiagonal;     // قطر نظری
       const diagonalDiff = Math.abs(diagonal1 - diagonal2);
 
-      // اگر منطق واقعی وضعیت دارید (pass/warning/fail)، اینجا اعمال کنید
-      const status: WindowData["status"] = "pass";
+      const status: WindowData["status"] =
+        w.status === "pass" ? "pass" : w.status === "warning" ? "warning" : "fail";
 
-      // اگر تایپ شما واقعاً به فیلدی به نام theoreticalDiagonal نیاز دارد، صفرش می‌کنیم
-      const theoreticalDiagonal = 0;
-
-      // ✅ فقط فیلدهای شناخته‌شده‌ی WindowData را ست کن
       const win: WindowData = {
-        id: w.id,          // از WindowItem
+        id: w.id,
         code: w.code ?? "",
         width,
         height,
         diagonal1,
         diagonal2,
         diagonalDiff,
-        status,
-        // اگر در نوع WindowData این فیلد وجود دارد، نگهش داریم (ارور شما نشان می‌داد لازم است)
         theoreticalDiagonal,
+        status,
       } as WindowData;
 
       return win;
     };
 
     const mapped: FloorData[] = floors.map((f) => ({
-      id: f.id,                // 🔹 طبق ارور، FloorData باید id هم داشته باشه
+      id: f.id,
       floorNumber: f.floorNumber,
       windows: f.windows.map(toWindowData),
     }));
@@ -103,24 +94,9 @@ const handleExport = () => {
   }, [floors]);
 
   const steps = [
-    {
-      id: 0,
-      title: "اطلاعات پروژه",
-      icon: Info,
-      description: "ثبت اطلاعات اولیه پروژه",
-    },
-    {
-      id: 1,
-      title: "ورود داده‌های پنجره",
-      icon: Clock,
-      description: "وارد کردن ابعاد پنجره‌ها",
-    },
-    {
-      id: 2,
-      title: "نمایش گزارش",
-      icon: BarChart3,
-      description: "مشاهده نتایج و تحلیل‌ها",
-    },
+    { id: 0, title: "اطلاعات پروژه", icon: Info,  description: "ثبت اطلاعات اولیه پروژه" },
+    { id: 1, title: "ورود داده‌های پنجره", icon: Clock, description: "وارد کردن ابعاد پنجره‌ها" },
+    { id: 2, title: "گزارش و نمودارها", icon: BarChart3, description: "مشاهده نتایج و تحلیل‌ها" },
   ] as const;
 
   const canProceedToNextStep = () => {
@@ -243,19 +219,12 @@ const handleExport = () => {
                   <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-secondary shadow-glow">
                     <Info className="h-8 w-8 text-secondary-foreground" />
                   </div>
-                  <h2 className="mb-3 text-3xl font-bold text-foreground">
-                    اطلاعات پروژه
-                  </h2>
-                  <p className="text-lg text-muted-foreground">
-                    لطفا اطلاعات اولیه پروژه را با دقت وارد کنید
-                  </p>
+                  <h2 className="mb-3 text-3xl font-bold text-foreground">اطلاعات پروژه</h2>
+                  <p className="text-lg text-muted-foreground">لطفا اطلاعات اولیه پروژه را با دقت وارد کنید</p>
                 </div>
 
                 <div className="rounded-2xl border border-border bg-gradient-subtle p-8">
-                  <ProjectInfoForm
-                    projectInfo={projectInfo}
-                    onUpdate={updateProjectInfo}
-                  />
+                  <ProjectInfoForm projectInfo={projectInfo} onUpdate={updateProjectInfo} />
                 </div>
 
                 <div className="mt-8 flex justify-end">
@@ -283,12 +252,8 @@ const handleExport = () => {
                 <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-accent shadow-lg">
                   <Clock className="h-8 w-8 text-accent-foreground" />
                 </div>
-                <h2 className="mb-3 text-3xl font-bold text-foreground">
-                  ورود داده‌های پنجره
-                </h2>
-                <p className="text-lg text-muted-foreground">
-                  اطلاعات پنجره‌های هر طبقه را با دقت وارد کنید
-                </p>
+                <h2 className="mb-3 text-3xl font-bold text-foreground">ورود داده‌های پنجره</h2>
+                <p className="text-lg text-muted-foreground">اطلاعات پنجره‌های هر طبقه را با دقت وارد کنید</p>
               </div>
 
               <FloorManager
@@ -334,15 +299,11 @@ const handleExport = () => {
                 <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-primary shadow-lg">
                   <BarChart3 className="h-8 w-8 text-primary-foreground" />
                 </div>
-                <h2 className="mb-3 text-3xl font-bold text-foreground">
-                  گزارش و نمودارها
-                </h2>
-                <p className="text-lg text-muted-foreground">
-                  نتایج تحلیل تلورانس پنجره‌های پروژه
-                </p>
+                <h2 className="mb-3 text-3xl font-bold text-foreground">گزارش و نمودارها</h2>
+                <p className="text-lg text-muted-foreground">نتایج تحلیل تلورانس پنجره‌های پروژه</p>
               </div>
 
-              {/* 🔹 نمودارها: حتماً floorsForCharts پاس بده (نه floors) */}
+              {/* نمودارها از تایپ قدیمی استفاده می‌کنند، پس آداپتور می‌دهیم */}
               <ChartContainer floors={floorsForCharts} />
 
               <div className="mt-10 flex justify-between">
@@ -376,10 +337,8 @@ const handleExport = () => {
               <p className="leading-relaxed text-secondary/80">
                 {activeStep === 0 &&
                   'فیلدهای ستاره‌دار اجباری هستند. پس از تکمیل اطلاعات، "مرحله بعد" را بزنید.'}
-                {activeStep === 1 &&
-                  "برای هر طبقه می‌توانید چند پنجره اضافه کنید. قطرهای واقعی را نزدیک به قطر نظری وارد نمایید."}
-                {activeStep === 2 &&
-                  "در این بخش آمار کلی پروژه را می‌بینید و می‌توانید خروجی Excel بگیرید."}
+                {activeStep === 1 && "برای هر طبقه می‌توانید چند پنجره اضافه کنید. اندازه‌ها را با دقت وارد نمایید."}
+                {activeStep === 2 && "در این بخش آمار کلی پروژه را می‌بینید و می‌توانید خروجی Excel بگیرید."}
               </p>
             </div>
           </div>
