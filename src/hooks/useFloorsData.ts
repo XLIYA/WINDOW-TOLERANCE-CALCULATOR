@@ -1,26 +1,6 @@
+// src/hooks/useFloorsData.ts
 import { useMemo, useState } from "react";
-
-/** ابزارهای کمکی محاسبات */
-const avg = (a: number[]) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
-const rng = (a: number[]) => (a.length ? Math.max(...a) - Math.min(...a) : 0);
-const diag = (w: number, h: number) => Math.sqrt(w * w + h * h);
-
-const determineStatusWithLimit = (
-  widthTol: number,
-  heightTol: number,
-  diagonalDiff: number,
-  limit: number,
-  warningMultiplier = 1.5
-): "pass" | "warning" | "fail" => {
-  if (widthTol <= limit && heightTol <= limit && diagonalDiff <= limit) return "pass";
-  if (
-    widthTol <= limit * warningMultiplier &&
-    heightTol <= limit * warningMultiplier &&
-    diagonalDiff <= limit * warningMultiplier
-  )
-    return "warning";
-  return "fail";
-};
+import { computeWindowTolerance } from "@/utils/computeWindowTolerance";
 
 /** انواع داده (ورود/ذخیره پنجره) */
 export interface WindowInput {
@@ -68,38 +48,35 @@ export interface FloorItem {
   windows: WindowItem[];
 }
 
+/** مشتق‌گیری مقادیر با استفاده از فرمول جدید */
 function buildWindowDerived(w: WindowInput) {
-  const widthMean = avg([w.widthTop, w.widthMiddle, w.widthBottom]);
-  const heightMean = avg([w.heightLeft, w.heightMiddle, w.heightRight]);
-
-  const widthRange = rng([w.widthTop, w.widthMiddle, w.widthBottom]);
-  const heightRange = rng([w.heightLeft, w.heightMiddle, w.heightRight]);
-
-  const theoreticalDiagonal = diag(w.nominalWidth, w.nominalHeight);
-  const actualDiagonal = diag(widthMean, heightMean);
-
-  const widthTolerance = Math.abs(widthMean - w.nominalWidth);
-  const heightTolerance = Math.abs(heightMean - w.nominalHeight);
-  const diagonalDiff = Math.abs(actualDiagonal - theoreticalDiagonal);
-
-  const status = determineStatusWithLimit(
-    widthTolerance,
-    heightTolerance,
-    diagonalDiff,
-    w.limit
-  );
+  const r = computeWindowTolerance({
+    Wtop: w.widthTop,
+    Wmid: w.widthMiddle,
+    Wbot: w.widthBottom,
+    Hleft: w.heightLeft,
+    Hmid: w.heightMiddle,
+    Hright: w.heightRight,
+    W0: w.nominalWidth,
+    H0: w.nominalHeight,
+    T: w.limit,
+    // k: 1.5, // اگر ضریب هشدار متفاوتی خواستی، اینجا ست کن
+  });
 
   return {
-    widthMean,
-    heightMean,
-    widthRange,
-    heightRange,
-    theoreticalDiagonal,
-    actualDiagonal,
-    widthTolerance,
-    heightTolerance,
-    diagonalDiff,
-    status,
+    widthMean: r.Wbar,
+    heightMean: r.Hbar,
+    widthRange: r.RangeW,
+    heightRange: r.RangeH,
+
+    theoreticalDiagonal: r.Dth,
+    actualDiagonal: r.Dact,
+    diagonalDiff: r.DeltaD,
+
+    widthTolerance: r.TolW,
+    heightTolerance: r.TolH,
+
+    status: r.status,
   };
 }
 
@@ -125,14 +102,21 @@ export function useFloorsData(initial?: FloorItem[]) {
 
   /** افزودن/حذف طبقه */
   const addFloor = (name?: string) => {
-    setFloors((prev) => renumberFloors([...prev, { id: crypto.randomUUID(), name, floorNumber: 0, windows: [] }]));
+    setFloors((prev) =>
+      renumberFloors([
+        ...prev,
+        { id: crypto.randomUUID(), name, floorNumber: 0, windows: [] },
+      ])
+    );
     setCurrentFloorIndex((idx) => floors.length); // انتخاب طبقه آخر
   };
 
   const removeFloor = (floorId: string) => {
     setFloors((prev) => {
       const next = renumberFloors(prev.filter((f) => f.id !== floorId));
-      setCurrentFloorIndex((idx) => (idx >= next.length ? Math.max(0, next.length - 1) : idx));
+      setCurrentFloorIndex((idx) =>
+        idx >= next.length ? Math.max(0, next.length - 1) : idx
+      );
       return next.length
         ? next
         : [{ id: crypto.randomUUID(), name: "طبقه 1", floorNumber: 1, windows: [] }];
@@ -164,7 +148,11 @@ export function useFloorsData(initial?: FloorItem[]) {
     );
   };
 
-  const updateWindow = (floorId: string, windowId: string, patch: Partial<WindowInput>) => {
+  const updateWindow = (
+    floorId: string,
+    windowId: string,
+    patch: Partial<WindowInput>
+  ) => {
     setFloors((prev) =>
       prev.map((f) =>
         f.id === floorId
@@ -197,13 +185,17 @@ export function useFloorsData(initial?: FloorItem[]) {
   const removeWindow = (floorId: string, windowId: string) => {
     setFloors((prev) =>
       prev.map((f) =>
-        f.id === floorId ? { ...f, windows: f.windows.filter((w) => w.id !== windowId) } : f
+        f.id === floorId
+          ? { ...f, windows: f.windows.filter((w) => w.id !== windowId) }
+          : f
       )
     );
   };
 
   const clearAllData = () => {
-    setFloors([{ id: crypto.randomUUID(), name: "طبقه 1", floorNumber: 1, windows: [] }]);
+    setFloors([
+      { id: crypto.randomUUID(), name: "طبقه 1", floorNumber: 1, windows: [] },
+    ]);
     setCurrentFloorIndex(0);
   };
 
@@ -212,15 +204,23 @@ export function useFloorsData(initial?: FloorItem[]) {
     const totalFloors = floors.length;
     const totalWindows = floors.reduce((s, f) => s + f.windows.length, 0);
 
-    const pass = floors.flatMap((f) => f.windows).filter((w) => w.status === "pass").length;
-    const warning = floors.flatMap((f) => f.windows).filter((w) => w.status === "warning").length;
-    const fail = floors.flatMap((f) => f.windows).filter((w) => w.status === "fail").length;
+    const pass = floors
+      .flatMap((f) => f.windows)
+      .filter((w) => w.status === "pass").length;
+    const warning = floors
+      .flatMap((f) => f.windows)
+      .filter((w) => w.status === "warning").length;
+    const fail = floors
+      .flatMap((f) => f.windows)
+      .filter((w) => w.status === "fail").length;
 
     // میانگین تلورانس (میانگینِ میانگین عرض/ارتفاع)
     const allTol = floors.flatMap((f) =>
       f.windows.map((w) => (w.widthTolerance + w.heightTolerance) / 2)
     );
-    const avgTol = totalWindows ? allTol.reduce((s, x) => s + x, 0) / totalWindows : 0;
+    const avgTol = totalWindows
+      ? allTol.reduce((s, x) => s + x, 0) / totalWindows
+      : 0;
 
     return { totalFloors, totalWindows, pass, warning, fail, avgTol };
   }, [floors]);

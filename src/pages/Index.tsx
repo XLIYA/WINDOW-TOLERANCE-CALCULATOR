@@ -9,7 +9,7 @@ import { useExcelExport } from "@/hooks/useExcelExport";
 import { useFloorsData } from "@/hooks/useFloorsData";
 import { Info, ChevronRight, CheckCircle, Clock, BarChart3 } from "lucide-react";
 
-// 👇 تایپ‌های نمودار/گزارش (قدیمی) — صرفاً برای ChartContainer
+// تایپ‌های قدیمی برای ChartContainer
 import type { FloorData, WindowData } from "@/types";
 
 export default function Home() {
@@ -44,28 +44,21 @@ export default function Home() {
     }
   };
 
-  // ⛳️ دانلود اکسل: حتماً floors اصلی (از هوک) پاس داده شود تا همه فیلدهای جدید در خروجی بیاید
+  // ✅ هیچ any ای استفاده نشده
   const handleExport = () => {
-    exportToExcel(projectInfo as any, floors as any);
+    exportToExcel(projectInfo, floors);
   };
 
-  /**
-   * آداپتور برای ChartContainer: FloorItem[] -> FloorData[]
-   * چون کامپوننت نمودار از تایپ‌های قدیمی استفاده می‌کند (width/height/diagonal1/2 و ...)،
-   * اینجا از مقادیر مشتق‌شده‌ی جدیدمان (میانگین‌ها و قطرها) برای پر کردن آن تایپ استفاده می‌کنیم.
-   */
+  // آداپتور برای ChartContainer (بدون any)
   const floorsForCharts: FloorData[] = useMemo(() => {
     const toWindowData = (w: (typeof floors)[number]["windows"][number]): WindowData => {
       const width = Number(w.widthMean ?? 0);
       const height = Number(w.heightMean ?? 0);
-
-      // برای سازگاری با تایپ قدیمی:
       const theoreticalDiagonal = Number(w.theoreticalDiagonal ?? 0);
       const actualDiagonal = Number(w.actualDiagonal ?? 0);
-      const diagonal1 = actualDiagonal;          // قطر اندازه‌گیری‌شده (از میانگین‌ها)
-      const diagonal2 = theoreticalDiagonal;     // قطر نظری
+      const diagonal1 = actualDiagonal;
+      const diagonal2 = theoreticalDiagonal;
       const diagonalDiff = Math.abs(diagonal1 - diagonal2);
-
       const status: WindowData["status"] =
         w.status === "pass" ? "pass" : w.status === "warning" ? "warning" : "fail";
 
@@ -94,7 +87,7 @@ export default function Home() {
   }, [floors]);
 
   const steps = [
-    { id: 0, title: "اطلاعات پروژه", icon: Info,  description: "ثبت اطلاعات اولیه پروژه" },
+    { id: 0, title: "اطلاعات پروژه", icon: Info, description: "ثبت اطلاعات اولیه پروژه" },
     { id: 1, title: "ورود داده‌های پنجره", icon: Clock, description: "وارد کردن ابعاد پنجره‌ها" },
     { id: 2, title: "گزارش و نمودارها", icon: BarChart3, description: "مشاهده نتایج و تحلیل‌ها" },
   ] as const;
@@ -114,21 +107,18 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Header onExport={handleExport} onReset={handleReset} />
-
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Progress Steps */}
+        {/* Steps */}
         <div className="mb-10">
           <div className="flex items-center justify-center">
             {steps.map((step, index) => {
               const status = getStepStatus(step.id);
               const Icon = step.icon;
-
               return (
                 <React.Fragment key={step.id}>
                   <div
-                    className={`group flex cursor-pointer flex-col items-center transition-all duration-300 ${
-                      status !== "pending" ? "opacity-100" : "opacity-60"
-                    }`}
+                    className={`group flex cursor-pointer flex-col items-center transition-all duration-300 ${status !== "pending" ? "opacity-100" : "opacity-60"
+                      }`}
                     onClick={() => {
                       if (
                         step.id === 0 ||
@@ -140,67 +130,33 @@ export default function Home() {
                     }}
                   >
                     <div
-                      className={`
-                        relative flex h-14 w-14 items-center justify-center rounded-2xl text-sm font-bold transition-all duration-300
-                        ${
-                          status === "completed"
-                            ? "bg-success text-success-foreground shadow-lg animate-scale-in"
-                            : status === "active"
-                            ? "bg-gradient-secondary text-secondary-foreground shadow-glow animate-glow"
-                            : "bg-muted text-muted-foreground"
-                        }
-                      `}
+                      className={`relative flex h-14 w-14 items-center justify-center rounded-2xl text-sm font-bold transition-all duration-300 ${status === "completed"
+                        ? "bg-success text-success-foreground shadow-lg animate-scale-in"
+                        : status === "active"
+                          ? "bg-gradient-secondary text-secondary-foreground shadow-glow animate-glow"
+                          : "bg-muted text-muted-foreground"
+                        }`}
                     >
-                      {status === "completed" ? (
-                        <CheckCircle className="h-6 w-6" />
-                      ) : (
-                        <Icon className="h-6 w-6" />
-                      )}
-                      {status === "active" && (
-                        <div className="absolute inset-0 rounded-2xl bg-gradient-secondary opacity-20 animate-pulse" />
-                      )}
+                      {status === "completed" ? <CheckCircle className="h-6 w-6" /> : <Icon className="h-6 w-6" />}
+                      {status === "active" && <div className="absolute inset-0 rounded-2xl bg-gradient-secondary opacity-20 animate-pulse" />}
                     </div>
 
                     <div className="mt-3 text-center">
                       <span
-                        className={`
-                          block text-sm font-semibold transition-all duration-300
-                          ${
-                            status === "active"
-                              ? "text-secondary"
-                              : status === "completed"
-                              ? "text-success"
-                              : "text-muted-foreground"
-                          }
-                        `}
+                        className={`block text-sm font-semibold transition-all duration-300 ${status === "active" ? "text-secondary" : status === "completed" ? "text-success" : "text-muted-foreground"
+                          }`}
                       >
                         {step.title}
                       </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        {step.description}
-                      </span>
+                      <span className="mt-1 block text-xs text-muted-foreground">{step.description}</span>
                     </div>
                   </div>
 
                   {index < steps.length - 1 && (
                     <div className="mx-8 flex items-center">
-                      <div
-                        className={`h-0.5 w-20 transition-all duration-500 ${
-                          getStepStatus(step.id) === "completed" ? "bg-success" : "bg-border"
-                        }`}
-                      />
-                      <ChevronRight
-                        className={`mx-2 h-5 w-5 transition-all duration-300 ${
-                          getStepStatus(step.id) === "completed"
-                            ? "text-success"
-                            : "text-muted-foreground"
-                        }`}
-                      />
-                      <div
-                        className={`h-0.5 w-20 transition-all duration-500 ${
-                          getStepStatus(step.id) === "completed" ? "bg-success" : "bg-border"
-                        }`}
-                      />
+                      <div className={`h-0.5 w-20 transition-all duration-500 ${getStepStatus(step.id) === "completed" ? "bg-success" : "bg-border"}`} />
+                      <ChevronRight className={`mx-2 h-5 w-5 transition-all duration-300 ${getStepStatus(step.id) === "completed" ? "text-success" : "text-muted-foreground"}`} />
+                      <div className={`h-0.5 w-20 transition-all duration-500 ${getStepStatus(step.id) === "completed" ? "bg-success" : "bg-border"}`} />
                     </div>
                   )}
                 </React.Fragment>
@@ -209,9 +165,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Content Area */}
+        {/* Content */}
         <div className="animate-fade-in overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
-          {/* Step 1: Project Info */}
           {activeStep === 0 && (
             <div className="p-10">
               <div className="mx-auto max-w-4xl">
@@ -231,11 +186,10 @@ export default function Home() {
                   <button
                     onClick={() => setActiveStep(1)}
                     disabled={!isProjectInfoComplete()}
-                    className={`group flex items-center gap-3 rounded-2xl px-8 py-4 font-semibold transition-all duration-300 ${
-                      isProjectInfoComplete()
-                        ? "bg-gradient-secondary text-secondary-foreground hover:shadow-glow hover:-translate-y-1 hover:scale-105"
-                        : "cursor-not-allowed bg-muted text-muted-foreground"
-                    }`}
+                    className={`group flex items-center gap-3 rounded-2xl px-8 py-4 font-semibold transition-all duration-300 ${isProjectInfoComplete()
+                      ? "bg-gradient-secondary text-secondary-foreground hover:shadow-glow hover:-translate-y-1 hover:scale-105"
+                      : "cursor-not-allowed bg-muted text-muted-foreground"
+                      }`}
                   >
                     <span>مرحله بعد</span>
                     <ChevronRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
@@ -245,7 +199,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Step 2: Window Data Entry */}
           {activeStep === 1 && (
             <div className="p-10">
               <div className="mb-10 text-center">
@@ -279,11 +232,10 @@ export default function Home() {
                 <button
                   onClick={() => setActiveStep(2)}
                   disabled={!floors.some((f) => f.windows.length > 0)}
-                  className={`group flex items-center gap-3 rounded-2xl px-8 py-4 font-semibold transition-all duration-300 ${
-                    floors.some((f) => f.windows.length > 0)
-                      ? "bg-gradient-secondary text-secondary-foreground hover:shadow-glow hover:-translate-y-1 hover:scale-105"
-                      : "cursor-not-allowed bg-muted text-muted-foreground"
-                  }`}
+                  className={`group flex items-center gap-3 rounded-2xl px-8 py-4 font-semibold transition-all duration-300 ${floors.some((f) => f.windows.length > 0)
+                    ? "bg-gradient-secondary text-secondary-foreground hover:shadow-glow hover:-translate-y-1 hover:scale-105"
+                    : "cursor-not-allowed bg-muted text-muted-foreground"
+                    }`}
                 >
                   <span>نمایش گزارش</span>
                   <ChevronRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
@@ -292,7 +244,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Step 3: Reports and Charts */}
           {activeStep === 2 && (
             <div className="p-10">
               <div className="mb-10 text-center">
@@ -303,7 +254,6 @@ export default function Home() {
                 <p className="text-lg text-muted-foreground">نتایج تحلیل تلورانس پنجره‌های پروژه</p>
               </div>
 
-              {/* نمودارها از تایپ قدیمی استفاده می‌کنند، پس آداپتور می‌دهیم */}
               <ChartContainer floors={floorsForCharts} />
 
               <div className="mt-10 flex justify-between">
@@ -324,24 +274,6 @@ export default function Home() {
               </div>
             </div>
           )}
-        </div>
-
-        {/* Help Section */}
-        <div className="mt-8 animate-slide-up rounded-2xl border border-secondary/20 bg-secondary-light p-8">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-secondary/10">
-              <Info className="h-6 w-6 text-secondary" />
-            </div>
-            <div>
-              <h3 className="mb-2 text-lg font-bold text-secondary">راهنمای استفاده</h3>
-              <p className="leading-relaxed text-secondary/80">
-                {activeStep === 0 &&
-                  'فیلدهای ستاره‌دار اجباری هستند. پس از تکمیل اطلاعات، "مرحله بعد" را بزنید.'}
-                {activeStep === 1 && "برای هر طبقه می‌توانید چند پنجره اضافه کنید. اندازه‌ها را با دقت وارد نمایید."}
-                {activeStep === 2 && "در این بخش آمار کلی پروژه را می‌بینید و می‌توانید خروجی Excel بگیرید."}
-              </p>
-            </div>
-          </div>
         </div>
       </main>
     </div>

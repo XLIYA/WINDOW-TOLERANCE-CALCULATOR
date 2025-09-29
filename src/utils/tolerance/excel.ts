@@ -24,7 +24,6 @@ export const exportToExcel = (projectInfo: ProjectInfo, floors: FloorData[]): vo
     ['قطر:', `${TOLERANCE_LIMITS.diagonal} mm`],
     ['* توجه: در این پروژه برای هر پنجره LIMIT اختصاصی ثبت می‌شود.'],
   ];
-
   const projectWs = XLSX.utils.aoa_to_sheet(projectData);
   XLSX.utils.book_append_sheet(wb, projectWs, 'اطلاعات پروژه');
 
@@ -57,13 +56,12 @@ export const exportToExcel = (projectInfo: ProjectInfo, floors: FloorData[]): vo
         STATUS_LABELS[w.status]
       ])
     ];
-
     const ws = XLSX.utils.aoa_to_sheet(floorData);
     XLSX.utils.book_append_sheet(wb, ws, `طبقه ${floor.floorNumber}`);
   });
 
   // Statistics Sheet
-  const stats = calculateStatistics(floors as any); // اگر تابع شما نیاز به سازگاری دارد
+  const stats = calculateStatistics(floors); // ← بدون cast
   const summaryData = [
     ['خلاصه آماری'],
     [''],
@@ -72,7 +70,6 @@ export const exportToExcel = (projectInfo: ProjectInfo, floors: FloorData[]): vo
     ['هشدار:', stats.warning],
     ['مردود:', stats.fail],
   ];
-
   const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
   XLSX.utils.book_append_sheet(wb, summaryWs, 'خلاصه آماری');
 
@@ -80,10 +77,9 @@ export const exportToExcel = (projectInfo: ProjectInfo, floors: FloorData[]): vo
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
   const buf = new ArrayBuffer(wbout.length);
   const view = new Uint8Array(buf);
-  for (let i = 0; i < wbout.length; i++) {
-    view[i] = wbout.charCodeAt(i) & 0xff;
-  }
-  const blob = new Blob([buf], { type: 'application/octet-stream' });
-  const fileName = `گزارش_تلورانس_${projectInfo.buildingName}_${new Date().toLocaleDateString('fa-IR')}.xlsx`;
-  saveAs(blob, fileName);
+  for (let i = 0; i < wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xff;
+
+  const safeDate = new Date().toLocaleDateString('fa-IR').replace(/\//g, '-'); // ← امن
+  const fileName = `گزارش_تلورانس_${projectInfo.buildingName}_${safeDate}.xlsx`;
+  saveAs(new Blob([buf], { type: 'application/octet-stream' }), fileName);
 };
